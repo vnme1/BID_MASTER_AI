@@ -1,0 +1,34 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(/c/Users/USER/Desktop/vnme/project/bid-master-ai/backend/venv/Scripts/pip list:*)",
+      "Bash(/c/Users/USER/Desktop/vnme/project/bid-master-ai/backend/venv/Scripts/python --version)",
+      "Bash(/c/Users/USER/Desktop/vnme/project/bid-master-ai/backend/venv/Scripts/pip show:*)",
+      "Bash(/c/Users/USER/Desktop/vnme/project/bid-master-ai/backend/venv/Scripts/python -c ':*)",
+      "Bash(npm install:*)",
+      "Bash(/c/Users/USER/Desktop/vnme/project/bid-master-ai/backend/venv/Scripts/python -c \" import zipfile, xml.etree.ElementTree as ET with zipfile.ZipFile\\('조달청_OpenAPI참고자료_나라장터_낙찰정보서비스_1.1.docx'\\) as z: with z.open\\('word/document.xml'\\) as f: root = ET.parse\\(f\\).getroot\\(\\) texts = [] for p in root.iter\\('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}p'\\): line = ''.join\\(t.text or '' for t in p.iter\\('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}t'\\)\\) if line.strip\\(\\): texts.append\\(line.strip\\(\\)\\) for i, t in enumerate\\(texts\\): if any\\(k in t for k in ['URL', 'http', 'getOpeng', 'getNtwk', 'Service', 'apis.data', 'operation', 'Operation', '오퍼레이션', 'inqry', 'serviceKey']\\): print\\(f'[{i}] {t}'\\) \")",
+      "Bash(/c/Users/USER/Desktop/vnme/project/bid-master-ai/backend/venv/Scripts/python -c \" import zipfile, xml.etree.ElementTree as ET with zipfile.ZipFile\\('조달청_OpenAPI참고자료_나라장터_낙찰정보서비스_1.1.docx'\\) as z: with z.open\\('word/document.xml'\\) as f: root = ET.parse\\(f\\).getroot\\(\\) texts = [] for p in root.iter\\('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}p'\\): line = ''.join\\(t.text or '' for t in p.iter\\('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}t'\\)\\) if line.strip\\(\\): texts.append\\(line.strip\\(\\)\\) for i, t in enumerate\\(texts\\): if any\\(k in t for k in ['inqryBgn', 'inqryEnd', '범위', '개월', '기간', '3개', '6개', '90', '180', 'getOpengResult', '용역']\\): print\\(f'[{i}] {t}'\\) \")",
+      "Bash(../backend/venv/Scripts/python -c ':*)",
+      "Bash(../backend/venv/Scripts/pip install:*)",
+      "Bash(../backend/venv/Scripts/python db_loader.py)",
+      "Bash(PYTHONIOENCODING=utf-8 ../backend/venv/Scripts/python db_loader.py)",
+      "Bash(taskkill /F /IM python.exe)",
+      "Bash(PYTHONIOENCODING=utf-8 venv/Scripts/uvicorn main:app --host 0.0.0.0 --port 8000)",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('count:', d.get\\('count'\\)\\); print\\('avg:', d.get\\('avg'\\)\\); print\\('top_rate:', d.get\\('top_rate'\\)\\); print\\('min:', d.get\\('min'\\)\\); print\\('max:', d.get\\('max'\\)\\)\")",
+      "Bash(curl -s http://localhost:5173/)",
+      "Bash(curl -s \"http://localhost:8000/api/bids?page=1&page_size=1\")",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(list\\(d['items'][0].keys\\(\\)\\) if d['items'] else 'empty'\\)\")",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('risks:', len\\(d.get\\('risks',[]\\)\\)\\); [print\\(' -', r['level'], r['text']\\) for r in d.get\\('risks',[]\\)]\")",
+      "Bash(python -c ':*)",
+      "Bash(curl:*)",
+      "Bash(\"C:/Users/USER/Desktop/vnme/project/bid-master-ai/backend/venv/Scripts/pip\" install:*)",
+      "Bash(\"C:/Users/USER/Desktop/vnme/project/bid-master-ai/backend/venv/Scripts/pip\" show:*)",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('status:', d['status'], '| scheduler:', d['scheduler'], '| openai:', d['openai']\\)\")",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('scheduler:', d['scheduler'], '| openai:', d['openai']\\)\")",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('count:', d.get\\('count'\\), '| avg:', d.get\\('avg'\\), '| fuksu_only:', d.get\\('fuksu_only'\\)\\)\")",
+      "Bash(python -c \"import sys,json; print\\(json.load\\(sys.stdin\\)\\)\")",
+      "Bash(python -c \"import json,sys; models=json.load\\(sys.stdin\\).get\\('models',[]\\); [print\\(m['name']\\) for m in models]\")",
+      "Bash(python -c \"import json,sys; data=json.load\\(sys.stdin\\); [print\\(m['name'], '-', m.get\\('supportedGenerationMethods',''\\)\\) for m in data.get\\('models',[]\\)]\")"
+    ]
+  }
+}
