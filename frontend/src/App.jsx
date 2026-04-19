@@ -7,11 +7,12 @@ import {
   Loader2, X, TrendingUp, FileText, AlertCircle,
   BarChart2, Activity, Sparkles, Target, ShieldAlert,
   CheckCircle2, Info, Zap, Users, Trophy, Clock,
-  SlidersHorizontal, LogOut, ChevronDown, Settings,
+  SlidersHorizontal, LogOut, ChevronDown, Settings, User,
 } from 'lucide-react'
 import { useAuth, ROLE_META } from './AuthContext'
 import LoginPage from './LoginPage'
 import AdminPage from './AdminPage'
+import MyPage from './MyPage'
 
 const API = '/api'
 
@@ -426,7 +427,7 @@ function StrategyTab({ bid }) {
 
 /* ── AI 브리핑 탭 ────────────────────────────────────────────── */
 
-function AiBriefTab({ bid }) {
+function AiBriefTab({ bid, onUsed }) {
   const [brief, setBrief] = useState(null)
   const [loading, setLoading] = useState(true)
   const [errMsg, setErrMsg] = useState('')
@@ -444,7 +445,11 @@ function AiBriefTab({ bid }) {
         if (status === 429) setErrMsg('오늘 AI 분석 한도를 모두 사용했습니다. 내일 다시 시도하세요.')
         else setErrMsg('AI 분석을 불러오지 못했습니다.')
       })
-      .finally(() => { if (!cancelled) setLoading(false) })
+      .finally(() => {
+        if (cancelled) return
+        setLoading(false)
+        onUsed?.()
+      })
     return () => { cancelled = true }
   }, [bid.bid_no])
 
@@ -551,7 +556,7 @@ const DRAWER_TABS = [
   { id: 'ai',       label: 'AI 브리핑', icon: Sparkles },
 ]
 
-function DetailPanel({ bid, onClose }) {
+function DetailPanel({ bid, onClose, onAiUsed }) {
   const [drawerTab, setDrawerTab] = useState('info')
 
   // 공고가 바뀌면 탭 리셋
@@ -605,7 +610,7 @@ function DetailPanel({ bid, onClose }) {
             >
               {drawerTab === 'info'     && <BasicInfoTab bid={bid} />}
               {drawerTab === 'strategy' && <StrategyTab bid={bid} />}
-              {drawerTab === 'ai'       && <AiBriefTab bid={bid} />}
+              {drawerTab === 'ai'       && <AiBriefTab bid={bid} onUsed={onAiUsed} />}
             </motion.div>
           </AnimatePresence>
         </div>
@@ -956,6 +961,7 @@ export default function App() {
 function AppInner({ user, logout, refreshMe }) {
   const [tab, setTab] = useState('bids')
   const [showAdmin, setShowAdmin] = useState(false)
+  const [showMyPage, setShowMyPage] = useState(false)
   const [bids, setBids] = useState([])
   const [stats, setStats] = useState(null)
   const [total, setTotal] = useState(0)
@@ -1081,6 +1087,13 @@ function AppInner({ user, logout, refreshMe }) {
               {ROLE_META[user.role]?.label}
             </span>
             <span className="text-xs text-slate-500 hidden md:block">{user.name || user.email}</span>
+            <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+              onClick={() => setShowMyPage(true)}
+              className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-500 hover:text-violet-400 transition-colors"
+              title="마이페이지"
+            >
+              <User size={14} />
+            </motion.button>
             {(user.role === 'admin' || user.role === 'manager') && (
               <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
                 onClick={() => setShowAdmin(true)}
@@ -1327,7 +1340,10 @@ function AppInner({ user, logout, refreshMe }) {
                       </thead>
                       <tbody>
                         {bids.map((bid, i) => (
-                          <BidRow key={bid.bid_no} bid={bid} index={i} onClick={setSelected} />
+                          <BidRow key={bid.bid_no} bid={bid} index={i} onClick={(b) => {
+                            setSelected(b)
+                            axios.post(`${API}/bids/${b.bid_no}/view`).catch(() => {})
+                          }} />
                         ))}
                       </tbody>
                     </table>
@@ -1381,7 +1397,12 @@ function AppInner({ user, logout, refreshMe }) {
 
       {/* 상세 드로어 */}
       <AnimatePresence>
-        {selected && <DetailPanel bid={selected} onClose={() => setSelected(null)} />}
+        {selected && <DetailPanel bid={selected} onClose={() => setSelected(null)} onAiUsed={refreshMe} />}
+      </AnimatePresence>
+
+      {/* 마이페이지 */}
+      <AnimatePresence>
+        {showMyPage && <MyPage onClose={() => setShowMyPage(false)} />}
       </AnimatePresence>
 
       {/* 관리자 패널 */}

@@ -114,3 +114,30 @@ CREATE TABLE IF NOT EXISTS api_usage_log (
 
 CREATE INDEX IF NOT EXISTS idx_usage_user ON api_usage_log(user_id);
 CREATE INDEX IF NOT EXISTS idx_usage_date ON api_usage_log(called_at);
+
+-- ── 5. 공고 열람 기록 (bid_views) ─────────────────────────────
+CREATE TABLE IF NOT EXISTS bid_views (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id     INTEGER NOT NULL REFERENCES users(id),
+    bid_no      TEXT NOT NULL,
+    bid_name    TEXT,
+    org_name    TEXT,
+    est_price   REAL,
+    viewed_at   TEXT DEFAULT (datetime('now','localtime'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_views_user ON bid_views(user_id);
+CREATE INDEX IF NOT EXISTS idx_views_date ON bid_views(viewed_at);
+
+-- ── 6. AI 브리핑 사용 기록 (ai_brief_log) ─────────────────────
+CREATE TABLE IF NOT EXISTS ai_brief_log (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id     INTEGER NOT NULL REFERENCES users(id),
+    bid_no      TEXT NOT NULL,
+    bid_name    TEXT,
+    org_name    TEXT,
+    used_at     TEXT DEFAULT (datetime('now','localtime'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_ai_log_user ON ai_brief_log(user_id);
+CREATE INDEX IF NOT EXISTS idx_ai_log_date ON ai_brief_log(used_at);

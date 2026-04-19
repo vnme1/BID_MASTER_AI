@@ -327,6 +327,25 @@ def _init_db():
                 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
                 CREATE INDEX IF NOT EXISTS idx_usage_user ON api_usage_log(user_id);
                 CREATE INDEX IF NOT EXISTS idx_usage_date ON api_usage_log(called_at);
+                CREATE TABLE IF NOT EXISTS bid_views (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL REFERENCES users(id),
+                    bid_no TEXT NOT NULL,
+                    bid_name TEXT,
+                    org_name TEXT,
+                    est_price REAL,
+                    viewed_at TEXT DEFAULT (datetime('now','localtime'))
+                );
+                CREATE INDEX IF NOT EXISTS idx_views_user ON bid_views(user_id);
+                CREATE TABLE IF NOT EXISTS ai_brief_log (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL REFERENCES users(id),
+                    bid_no TEXT NOT NULL,
+                    bid_name TEXT,
+                    org_name TEXT,
+                    used_at TEXT DEFAULT (datetime('now','localtime'))
+                );
+                CREATE INDEX IF NOT EXISTS idx_ai_log_user ON ai_brief_log(user_id);
             """)
 
 
@@ -877,7 +896,75 @@ async def get_ai_brief(bid_no: str, current: TokenData = Depends(get_current_use
     if ai_powered:
         _brief_cache[bid_no] = {"result": result, "ts": datetime.now()}
 
+    # AI 사용 기록 (캐시 히트가 아닌 실제 호출만)
+    with get_conn() as conn:
+        conn.execute(
+            "INSERT INTO ai_brief_log(user_id, bid_no, bid_name, org_name) VALUES(?,?,?,?)",
+            (current.user_id, bid_no, bid.get("bid_name", ""), bid.get("org_name", "")),
+        )
+
     return result
+
+
+# ── 공고 열람 기록 ────────────────────────────────────────────
+
+@app.post("/api/bids/{bid_no}/view", status_code=204)
+def record_view(bid_no: str, current: TokenData = Depends(get_current_user)):
+    with get_conn() as conn:
+        bid = conn.execute(
+            "SELECT bid_name, org_name, est_price FROM bids WHERE bid_no=? ORDER BY bid_ord DESC LIMIT 1",
+            (bid_no,),
+        ).fetchone()
+        if bid:
+            conn.execute(
+                "INSERT INTO bid_views(user_id, bid_no, bid_name, org_name, est_price) VALUES(?,?,?,?,?)",
+                (current.user_id, bid_no, bid["bid_name"], bid["org_name"], bid["est_price"]),
+            )
+
+
+# ── 마이페이지 ────────────────────────────────────────────────
+
+@app.get("/api/mypage")
+def mypage(current: TokenData = Depends(get_current_user)):
+    with get_conn() as conn:
+        user = conn.execute(
+            "SELECT id, email, name, role, ai_daily_limit, ai_calls_today, created_at FROM users WHERE id=?",
+            (current.user_id,),
+        ).fetchone()
+
+        views = conn.execute(
+            """
+            SELECT bid_no, bid_name, org_name, est_price, viewed_at
+            FROM bid_views WHERE user_id=?
+            ORDER BY viewed_at DESC LIMIT 50
+            """,
+            (current.user_id,),
+        ).fetchall()
+
+        ai_logs = conn.execute(
+            """
+            SELECT bid_no, bid_name, org_name, used_at
+            FROM ai_brief_log WHERE user_id=?
+            ORDER BY used_at DESC LIMIT 50
+            """,
+            (current.user_id,),
+        ).fetchall()
+
+        ai_daily = conn.execute(
+            """
+            SELECT date(used_at) AS day, COUNT(*) AS cnt
+            FROM ai_brief_log WHERE user_id=?
+            GROUP BY day ORDER BY day DESC LIMIT 30
+            """,
+            (current.user_id,),
+        ).fetchall()
+
+    return {
+        "user":     dict(user),
+        "views":    [dict(r) for r in views],
+        "ai_logs":  [dict(r) for r in ai_logs],
+        "ai_daily": [{"date": r["day"], "count": r["cnt"]} for r in ai_daily],
+    }
 
 
 # ── 경쟁사 패턴 분석 ──────────────────────────────────────────
