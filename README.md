@@ -92,3 +92,6 @@ npm run dev
 - `.env` 파일은 절대 커밋하지 말 것 (API 키 포함)
 - SQLite DB 파일도 `.gitignore`에 포함됨 — 최초 실행 시 `db_loader.py`로 생성
 - KONEPS API는 날짜 범위 제한이 있음 (개찰결과 최대 27일 단위 조회)
+
+<img width="1897" height="1937" alt="image" src="https://github.com/user-attachments/assets/97df41de-e389-4db5-8a32-664718a1338a" />
+
