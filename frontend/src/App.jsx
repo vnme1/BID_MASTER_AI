@@ -7,8 +7,11 @@ import {
   Loader2, X, TrendingUp, FileText, AlertCircle,
   BarChart2, Activity, Sparkles, Target, ShieldAlert,
   CheckCircle2, Info, Zap, Users, Trophy, Clock,
-  SlidersHorizontal, ChevronDown,
+  SlidersHorizontal, LogOut, ChevronDown, Settings,
 } from 'lucide-react'
+import { useAuth, ROLE_META } from './AuthContext'
+import LoginPage from './LoginPage'
+import AdminPage from './AdminPage'
 
 const API = '/api'
 
@@ -426,13 +429,21 @@ function StrategyTab({ bid }) {
 function AiBriefTab({ bid }) {
   const [brief, setBrief] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [errMsg, setErrMsg] = useState('')
 
   useEffect(() => {
     let cancelled = false
     setLoading(true)
     setBrief(null)
+    setErrMsg('')
     axios.get(`${API}/bids/${bid.bid_no}/ai-brief`)
       .then(({ data }) => { if (!cancelled) setBrief(data) })
+      .catch((err) => {
+        if (cancelled) return
+        const status = err?.response?.status
+        if (status === 429) setErrMsg('오늘 AI 분석 한도를 모두 사용했습니다. 내일 다시 시도하세요.')
+        else setErrMsg('AI 분석을 불러오지 못했습니다.')
+      })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
   }, [bid.bid_no])
@@ -441,6 +452,12 @@ function AiBriefTab({ bid }) {
     <div className="flex items-center justify-center py-16 gap-2 text-slate-500">
       <Loader2 size={16} className="animate-spin text-violet-400" />
       <span className="text-xs">분석 중...</span>
+    </div>
+  )
+  if (errMsg) return (
+    <div className="flex items-center gap-2 p-4 rounded-xl bg-rose-500/10 border border-rose-500/30">
+      <AlertCircle size={14} className="text-rose-400 shrink-0" />
+      <p className="text-xs text-rose-300">{errMsg}</p>
     </div>
   )
   if (!brief) return null
@@ -920,7 +937,25 @@ const BID_METHODS   = ['전자입찰', '수의계약', '일반경쟁', '제한�
 const DEADLINES     = [{ label: '전체', value: 0 }, { label: 'D-3', value: 3 }, { label: 'D-7', value: 7 }, { label: 'D-14', value: 14 }, { label: 'D-30', value: 30 }]
 
 export default function App() {
+  const { user, loading, logout, refreshMe } = useAuth()
+
+  // 초기 로딩 중
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center"
+      style={{ background: 'linear-gradient(135deg, #080c18 0%, #0e0a1f 50%, #080c18 100%)' }}>
+      <Loader2 size={28} className="animate-spin text-violet-400" />
+    </div>
+  )
+
+  // 미로그인 → 로그인 페이지
+  if (!user) return <LoginPage />
+
+  return <AppInner user={user} logout={logout} refreshMe={refreshMe} />
+}
+
+function AppInner({ user, logout, refreshMe }) {
   const [tab, setTab] = useState('bids')
+  const [showAdmin, setShowAdmin] = useState(false)
   const [bids, setBids] = useState([])
   const [stats, setStats] = useState(null)
   const [total, setTotal] = useState(0)
@@ -1031,6 +1066,39 @@ export default function App() {
               </div>
             )}
           </div>
+          <div className="flex items-center gap-3">
+            {/* AI 할당량 */}
+            {user.ai_daily_limit !== -1 && (
+              <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/8">
+                <Sparkles size={11} className="text-violet-400" />
+                <span className="text-xs text-slate-400">
+                  AI <span className="text-violet-300 font-medium">{Math.max(0, user.ai_daily_limit - (user.ai_calls_today || 0))}</span>/{user.ai_daily_limit}
+                </span>
+              </div>
+            )}
+            {/* 역할 뱃지 */}
+            <span className={`hidden sm:inline-block px-2.5 py-1 rounded-lg text-xs font-medium border ${ROLE_META[user.role]?.color}`}>
+              {ROLE_META[user.role]?.label}
+            </span>
+            <span className="text-xs text-slate-500 hidden md:block">{user.name || user.email}</span>
+            {(user.role === 'admin' || user.role === 'manager') && (
+              <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+                onClick={() => setShowAdmin(true)}
+                className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-500 hover:text-violet-400 transition-colors"
+                title="관리자 패널"
+              >
+                <Settings size={14} />
+              </motion.button>
+            )}
+            <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+              onClick={logout}
+              className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-500 hover:text-white transition-colors"
+              title="로그아웃"
+            >
+              <LogOut size={14} />
+            </motion.button>
+          </div>
+
           {tab === 'bids' && (
             <form onSubmit={handleSearch} className="flex gap-2">
               <div className="relative">
@@ -1314,6 +1382,11 @@ export default function App() {
       {/* 상세 드로어 */}
       <AnimatePresence>
         {selected && <DetailPanel bid={selected} onClose={() => setSelected(null)} />}
+      </AnimatePresence>
+
+      {/* 관리자 패널 */}
+      <AnimatePresence>
+        {showAdmin && <AdminPage onClose={() => setShowAdmin(false)} />}
       </AnimatePresence>
     </div>
   )

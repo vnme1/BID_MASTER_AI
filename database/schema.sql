@@ -82,3 +82,35 @@ CREATE INDEX IF NOT EXISTS idx_results_open_dt    ON bid_results(open_dt);
 CREATE INDEX IF NOT EXISTS idx_results_base_rate  ON bid_results(base_rate);
 CREATE INDEX IF NOT EXISTS idx_results_price_meth ON bid_results(price_method);
 CREATE INDEX IF NOT EXISTS idx_results_category   ON bid_results(category_no);
+
+-- ── 3. 사용자 (users) ──────────────────────────────────────────
+-- role: admin / manager / premium / general
+CREATE TABLE IF NOT EXISTS users (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    email           TEXT UNIQUE NOT NULL,
+    password_hash   TEXT NOT NULL,
+    name            TEXT NOT NULL DEFAULT '',
+    role            TEXT NOT NULL DEFAULT 'general'
+                        CHECK(role IN ('admin','manager','premium','general')),
+    is_active       INTEGER NOT NULL DEFAULT 1,
+    -- AI 분석 일일 할당량 (-1 = 무제한)
+    ai_daily_limit  INTEGER NOT NULL DEFAULT 3,
+    ai_calls_today  INTEGER NOT NULL DEFAULT 0,
+    last_reset_date TEXT DEFAULT (date('now','localtime')),
+    created_at      TEXT DEFAULT (datetime('now','localtime')),
+    updated_at      TEXT DEFAULT (datetime('now','localtime'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX IF NOT EXISTS idx_users_role  ON users(role);
+
+-- ── 4. API 사용 로그 (api_usage_log) ──────────────────────────
+CREATE TABLE IF NOT EXISTS api_usage_log (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id     INTEGER NOT NULL REFERENCES users(id),
+    endpoint    TEXT NOT NULL,
+    called_at   TEXT DEFAULT (datetime('now','localtime'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_usage_user ON api_usage_log(user_id);
+CREATE INDEX IF NOT EXISTS idx_usage_date ON api_usage_log(called_at);
