@@ -14,9 +14,11 @@ import asyncio
 import json
 import logging
 import os
+import random
 import secrets
 import sqlite3
 import sys
+import uuid
 from contextlib import asynccontextmanager, contextmanager
 from datetime import datetime, timedelta
 
@@ -72,6 +74,9 @@ _collect_log: list = []
 
 # AI 브리핑 캐시 (bid_no → {result, ts})
 _brief_cache: dict = {}
+
+# 시뮬레이션 퀴즈 세션 (session_id → {quiz, virtual_competitors, user_id, created_at})
+_quiz_store: dict = {}
 
 # ── 인증 유틸 ─────────────────────────────────────────────────
 
@@ -1191,4 +1196,158 @@ def analyze_base_rate(
         "top_rate":     float(top_bucket),
         "fuksu_only":   fuksu_only,
         "distribution": {k: v for k, v in sorted(buckets.items(), key=lambda x: float(x[0]))},
+    }
+
+
+# ── 입찰 시뮬레이션 게임 ──────────────────────────────────────
+
+def _cleanup_quiz_store():
+    """30분 이상 된 세션 제거"""
+    cutoff = datetime.now() - timedelta(minutes=30)
+    expired = [k for k, v in _quiz_store.items() if v["created_at"] < cutoff]
+    for k in expired:
+        _quiz_store.pop(k, None)
+
+
+def _get_sim_comment(rank: int, total: int, user_rate: float, actual_rate: float) -> str:
+    diff = user_rate - actual_rate
+    if rank == 1:
+        return "완벽합니다! 낙찰 사정률에 가장 근접했습니다!"
+    if rank <= 3:
+        return f"아깝습니다! {abs(diff):.2f}% 차이로 낙찰을 놓쳤습니다."
+    if diff > 3:
+        return "너무 공격적입니다! 사정률을 낮춰보세요."
+    if diff < -3:
+        return "너무 보수적입니다! 사정률을 조금 높여보세요."
+    return f"아직 갭이 있습니다. 기관 사정률 통계를 더 분석해보세요."
+
+
+@app.get("/api/simulation/quiz")
+def get_simulation_quiz(current: TokenData = Depends(get_current_user)):
+    _cleanup_quiz_store()
+
+    with get_conn() as conn:
+        row = conn.execute(
+            """
+            SELECT bid_no, bid_name, org_name, est_price, base_rate,
+                   winner_name, winning_amt, open_dt, price_method, large_category
+            FROM bid_results
+            WHERE base_rate IS NOT NULL AND base_rate > 0
+            ORDER BY RANDOM() LIMIT 1
+            """
+        ).fetchone()
+
+        if not row:
+            raise HTTPException(404, "게임용 데이터가 없습니다. 먼저 개찰결과를 수집해주세요.")
+
+        quiz = dict(row)
+        org_prefix = (quiz.get("org_name") or "")[:6]
+
+        dist_rows = conn.execute(
+            "SELECT base_rate FROM bid_results WHERE org_name LIKE ? AND base_rate IS NOT NULL LIMIT 200",
+            (f"%{org_prefix}%",),
+        ).fetchall()
+        rates = [r["base_rate"] for r in dist_rows]
+
+        if len(rates) < 5:
+            rates = [r["base_rate"] for r in conn.execute(
+                "SELECT base_rate FROM bid_results WHERE base_rate IS NOT NULL LIMIT 200"
+            ).fetchall()]
+
+    n_competitors = random.randint(5, 12)
+    pool = rates if rates else [95.0]
+    virtual_competitors = []
+    for i in range(n_competitors):
+        base = random.choice(pool)
+        noise = random.uniform(-0.4, 0.4)
+        rate = round(max(70.0, min(100.0, base + noise)), 2)
+        virtual_competitors.append({"name": f"참여업체{i+1:02d}", "rate": rate})
+
+    buckets: dict[str, int] = {}
+    for r in rates:
+        k = _bucket(r)
+        buckets[k] = buckets.get(k, 0) + 1
+
+    session_id = str(uuid.uuid4())
+    _quiz_store[session_id] = {
+        "quiz": quiz,
+        "virtual_competitors": virtual_competitors,
+        "user_id": current.user_id,
+        "created_at": datetime.now(),
+    }
+
+    return {
+        "session_id":       session_id,
+        "bid_name":         quiz["bid_name"],
+        "org_name":         quiz["org_name"],
+        "open_dt":          quiz["open_dt"],
+        "price_method":     quiz["price_method"],
+        "large_category":   quiz["large_category"],
+        "participant_count": n_competitors + 1,
+        "distribution":     {k: v for k, v in sorted(buckets.items(), key=lambda x: float(x[0]))},
+        "dist_count":       len(rates),
+    }
+
+
+class SimSubmitRequest(BaseModel):
+    session_id: str
+    user_rate: float
+    user_name: str = "나"
+
+
+@app.post("/api/simulation/submit")
+def submit_simulation(body: SimSubmitRequest, current: TokenData = Depends(get_current_user)):
+    store = _quiz_store.get(body.session_id)
+    if not store:
+        raise HTTPException(404, "세션을 찾을 수 없습니다. 새 문제를 시작하세요.")
+    if store["user_id"] != current.user_id:
+        raise HTTPException(403, "권한 없음")
+
+    quiz = store["quiz"]
+    actual_rate = quiz["base_rate"]
+    est_price = quiz["est_price"]
+
+    user_rate = round(max(70.0, min(100.0, body.user_rate)), 2)
+    user_name = body.user_name or "나"
+
+    participants = [
+        {
+            "name": c["name"],
+            "rate": c["rate"],
+            "price": round(est_price * c["rate"] / 100) if est_price else None,
+            "is_user": False,
+        }
+        for c in store["virtual_competitors"]
+    ]
+    participants.append({
+        "name": user_name,
+        "rate": user_rate,
+        "price": round(est_price * user_rate / 100) if est_price else None,
+        "is_user": True,
+    })
+
+    for p in participants:
+        p["distance"] = abs(p["rate"] - actual_rate)
+
+    participants.sort(key=lambda p: p["distance"])
+    for i, p in enumerate(participants):
+        p["rank"] = i + 1
+
+    user_rank = next(p["rank"] for p in participants if p.get("is_user"))
+    total = len(participants)
+    score = max(0, round((1 - (user_rank - 1) / total) * 1000))
+
+    _quiz_store.pop(body.session_id, None)
+
+    return {
+        "actual_rate":   actual_rate,
+        "actual_winner": quiz["winner_name"],
+        "winning_amt":   quiz["winning_amt"],
+        "est_price":     est_price,
+        "user_rate":     user_rate,
+        "user_rank":     user_rank,
+        "total":         total,
+        "score":         score,
+        "participants":  participants,
+        "comment":       _get_sim_comment(user_rank, total, user_rate, actual_rate),
     }

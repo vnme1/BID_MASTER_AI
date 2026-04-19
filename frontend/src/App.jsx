@@ -13,6 +13,7 @@ import { useAuth, ROLE_META } from './AuthContext'
 import LoginPage from './LoginPage'
 import AdminPage from './AdminPage'
 import MyPage from './MyPage'
+import SimulationTab from './SimulationTab'
 
 const API = '/api'
 
@@ -932,9 +933,10 @@ function CompetitorTab() {
 /* ── 메인 앱 ────────────────────────────────────────────────── */
 
 const TABS = [
-  { id: 'bids',        label: '공고 목록',  icon: FileText },
-  { id: 'analysis',   label: '사정률 분석', icon: Activity },
-  { id: 'competitors', label: '경쟁사 분석', icon: Users },
+  { id: 'bids',        label: '공고 목록',      icon: FileText },
+  { id: 'analysis',   label: '사정률 분석',     icon: Activity },
+  { id: 'competitors', label: '경쟁사 분석',    icon: Users },
+  { id: 'simulation', label: '입찰 연습장',     icon: Target },
 ]
 
 const PRICE_METHODS = ['복수예가', '단일예가', '협상에의한계약', '비예가']
@@ -1387,9 +1389,13 @@ function AppInner({ user, logout, refreshMe }) {
             <motion.div key="analysis" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
               <AnalysisTab />
             </motion.div>
-          ) : (
+          ) : tab === 'competitors' ? (
             <motion.div key="competitors" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
               <CompetitorTab />
+            </motion.div>
+          ) : (
+            <motion.div key="simulation" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
+              <SimulationTab />
             </motion.div>
           )}
         </AnimatePresence>
